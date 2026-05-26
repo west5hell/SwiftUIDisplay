@@ -7,6 +7,22 @@
 
 import SwiftUI
 
+// MARK: - System Color Helpers
+
+private extension Color {
+#if os(macOS)
+    static let systemGray4 = Color(white: 0.82)
+    static let systemGray5 = Color(white: 0.88)
+    static let systemGray6 = Color(white: 0.95)
+    static let systemBackground = Color(NSColor.windowBackgroundColor)
+#else
+    static let systemGray4 = Color(UIColor.systemGray4)
+    static let systemGray5 = Color(UIColor.systemGray5)
+    static let systemGray6 = Color(UIColor.systemGray6)
+    static let systemBackground = Color(UIColor.systemBackground)
+#endif
+}
+
 // MARK: - HTML Node Model
 
 indirect enum HTMLNode {
@@ -20,7 +36,7 @@ struct HTMLParser {
     static func parse(_ html: String) -> [HTMLNode] {
         var nodes: [HTMLNode] = []
         var index = html.startIndex
-
+        
         while index < html.endIndex {
             if html[index] == "<" {
                 // Try to parse a tag
@@ -43,7 +59,7 @@ struct HTMLParser {
         }
         return nodes
     }
-
+    
     private static func parseText(_ html: String, from start: String.Index) -> (String, String.Index) {
         var index = start
         var text = ""
@@ -53,16 +69,16 @@ struct HTMLParser {
         }
         return (decodeHTMLEntities(text), index)
     }
-
+    
     private static func parseElement(_ html: String, from start: String.Index) -> (HTMLNode, String.Index)? {
         guard html[start] == "<" else { return nil }
         var index = html.index(after: start)
-
+        
         // Skip closing tags at top level (handled by parent)
         if index < html.endIndex && html[index] == "/" {
             return nil
         }
-
+        
         // Skip comments
         if html[index...].hasPrefix("!--") {
             if let end = html.range(of: "-->", range: index..<html.endIndex) {
@@ -70,7 +86,7 @@ struct HTMLParser {
             }
             return nil
         }
-
+        
         // Parse tag name
         var tagName = ""
         while index < html.endIndex && html[index] != " " && html[index] != ">" && html[index] != "/" {
@@ -79,7 +95,7 @@ struct HTMLParser {
         }
         tagName = tagName.lowercased()
         guard !tagName.isEmpty else { return nil }
-
+        
         // Parse attributes
         var attributes: [String: String] = [:]
         while index < html.endIndex && html[index] != ">" && html[index] != "/" {
@@ -88,14 +104,14 @@ struct HTMLParser {
                 index = html.index(after: index)
             }
             if html[index] == ">" || html[index] == "/" { break }
-
+            
             // Attribute name
             var attrName = ""
             while index < html.endIndex && html[index] != "=" && html[index] != " " && html[index] != ">" {
                 attrName.append(html[index])
                 index = html.index(after: index)
             }
-
+            
             var attrValue = ""
             if index < html.endIndex && html[index] == "=" {
                 index = html.index(after: index)
@@ -113,7 +129,7 @@ struct HTMLParser {
                 attributes[attrName.lowercased()] = attrValue
             }
         }
-
+        
         // Self-closing
         let selfClosing = index < html.endIndex && html[index] == "/"
         // Advance past ">"
@@ -121,23 +137,23 @@ struct HTMLParser {
             index = html.index(after: index)
         }
         if index < html.endIndex { index = html.index(after: index) }
-
+        
         let voidElements = ["br", "hr", "img", "input", "link", "meta", "area", "base", "col", "embed", "param", "source", "track", "wbr"]
         if selfClosing || voidElements.contains(tagName) {
             return (.element(tag: tagName, attributes: attributes, children: []), index)
         }
-
+        
         // Parse children until closing tag
         var children: [HTMLNode] = []
         let closeTag = "</\(tagName)>"
-
+        
         while index < html.endIndex {
             let remaining = html[index...]
             if remaining.lowercased().hasPrefix(closeTag) {
                 index = html.index(index, offsetBy: closeTag.count)
                 break
             }
-
+            
             if html[index] == "<" {
                 // Check if it's a closing tag for this element
                 let afterLt = html.index(after: index)
@@ -148,7 +164,7 @@ struct HTMLParser {
                     }
                     break
                 }
-
+                
                 if let (child, next) = parseElement(html, from: index) {
                     children.append(child)
                     index = next
@@ -164,10 +180,10 @@ struct HTMLParser {
                 index = next
             }
         }
-
+        
         return (.element(tag: tagName, attributes: attributes, children: children), index)
     }
-
+    
     private static func decodeHTMLEntities(_ text: String) -> String {
         text
             .replacingOccurrences(of: "&amp;", with: "&")
@@ -183,7 +199,7 @@ struct HTMLParser {
 
 struct HTMLView: View {
     let html: String
-
+    
     var body: some View {
         let nodes = HTMLParser.parse(html)
         return VStack(alignment: .leading, spacing: 8) {
@@ -208,7 +224,7 @@ struct HTMLNodeView: View {
     let node: HTMLNode
     let context: RenderContext
     var listIndex: Int = 0
-
+    
     var body: some View {
         switch node {
         case .text(let string):
@@ -217,46 +233,46 @@ struct HTMLNodeView: View {
                 Text(trimmed)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
+            
         case .element(let tag, let attributes, let children):
             renderElement(tag: tag, attributes: attributes, children: children)
         }
     }
-
+    
     @ViewBuilder
     private func renderElement(tag: String, attributes: [String: String], children: [HTMLNode]) -> some View {
         switch tag {
-
-        // MARK: Block elements
+            
+            // MARK: Block elements
         case "p":
             inlineText(children)
                 .padding(.vertical, 2)
-
+            
         case "h1":
             inlineText(children)
                 .font(.system(size: 28, weight: .bold))
                 .padding(.vertical, 4)
-
+            
         case "h2":
             inlineText(children)
                 .font(.system(size: 22, weight: .bold))
                 .padding(.vertical, 3)
-
+            
         case "h3":
             inlineText(children)
                 .font(.system(size: 18, weight: .semibold))
                 .padding(.vertical, 2)
-
+            
         case "h4":
             inlineText(children)
                 .font(.system(size: 16, weight: .semibold))
                 .padding(.vertical, 2)
-
+            
         case "h5", "h6":
             inlineText(children)
                 .font(.system(size: 14, weight: .semibold))
                 .padding(.vertical, 2)
-
+            
         case "blockquote":
             HStack(alignment: .top, spacing: 0) {
                 Rectangle()
@@ -272,41 +288,41 @@ struct HTMLNodeView: View {
                 .padding(.leading, 10)
             }
             .padding(.vertical, 4)
-
+            
         case "pre":
             ScrollView(.horizontal, showsIndicators: false) {
                 inlineText(children)
                     .font(.system(.body, design: .monospaced))
                     .padding(12)
             }
-            .background(Color(.systemGray6))
+            .background(Color.systemGray6)
             .cornerRadius(8)
-
+            
         case "code":
             // Block code vs inline code
             if case .block = context {
                 inlineText(children)
                     .font(.system(.body, design: .monospaced))
                     .padding(4)
-                    .background(Color(.systemGray6))
+                    .background(Color.systemGray6)
                     .cornerRadius(4)
             } else {
                 inlineText(children)
                     .font(.system(.body, design: .monospaced))
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
-                    .background(Color(.systemGray6))
+                    .background(Color.systemGray6)
                     .cornerRadius(4)
             }
-
+            
         case "hr":
             Divider()
                 .padding(.vertical, 8)
-
+            
         case "br":
             Text(" ")
-
-        // MARK: Lists
+            
+            // MARK: Lists
         case "ul":
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(children.enumerated()), id: \.offset) { _, child in
@@ -323,7 +339,7 @@ struct HTMLNodeView: View {
                 }
             }
             .padding(.leading, 4)
-
+            
         case "ol":
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(liItems(children).enumerated()), id: \.offset) { idx, item in
@@ -336,33 +352,33 @@ struct HTMLNodeView: View {
                 }
             }
             .padding(.leading, 4)
-
+            
         case "li":
             inlineText(children)
-
-        // MARK: Tables
+            
+            // MARK: Tables
         case "table":
             tableView(children)
-
-        // MARK: Div / Section / Article / etc.
+            
+            // MARK: Div / Section / Article / etc.
         case "div", "section", "article", "main", "header", "footer", "nav", "aside", "figure", "figcaption":
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(children.enumerated()), id: \.offset) { _, child in
                     HTMLNodeView(node: child, context: .block)
                 }
             }
-
-        // MARK: Inline elements — rendered as attributed Text
+            
+            // MARK: Inline elements — rendered as attributed Text
         case "strong", "b", "em", "i", "u", "s", "del", "mark", "small", "span", "a":
             inlineText([.element(tag: tag, attributes: attributes, children: children)])
-
+            
         case "sup":
             inlineText([.element(tag: tag, attributes: attributes, children: children)])
-
+            
         case "sub":
             inlineText([.element(tag: tag, attributes: attributes, children: children)])
-
-        // MARK: Images
+            
+            // MARK: Images
         case "img":
             if let src = attributes["src"], let url = URL(string: src) {
                 AsyncImage(url: url) { image in
@@ -372,12 +388,12 @@ struct HTMLNodeView: View {
                         .cornerRadius(8)
                 } placeholder: {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray5))
+                        .fill(Color.systemGray5)
                         .frame(height: 120)
                         .overlay(ProgressView())
                 }
             }
-
+            
         default:
             // Fallback: render children
             VStack(alignment: .leading, spacing: 4) {
@@ -387,15 +403,15 @@ struct HTMLNodeView: View {
             }
         }
     }
-
+    
     // MARK: - Inline AttributedText Builder
-
+    
     private func inlineText(_ nodes: [HTMLNode]) -> Text {
         nodes.reduce(Text("")) { result, node in
-            result + textFrom(node: node, bold: false, italic: false, underline: false, strikethrough: false, link: nil, color: nil, mark: false, small: false, superscript: false, subscript_: false)
+            Text("\(result)\(textFrom(node: node, bold: false, italic: false, underline: false, strikethrough: false, link: nil, color: nil, mark: false, small: false, superscript: false, subscript_: false))")
         }
     }
-
+    
     private func textFrom(
         node: HTMLNode,
         bold: Bool,
@@ -422,7 +438,7 @@ struct HTMLNodeView: View {
             if superscript { t = t.font(.system(size: 11)).baselineOffset(6) }
             if subscript_ { t = t.font(.system(size: 11)).baselineOffset(-4) }
             return t
-
+            
         case .element(let tag, let attrs, let children):
             let nextBold = bold || tag == "strong" || tag == "b"
             let nextItalic = italic || tag == "em" || tag == "i"
@@ -433,7 +449,7 @@ struct HTMLNodeView: View {
             let nextSmall = small || tag == "small"
             let nextSuperscript = superscript || tag == "sup"
             let nextSubscript = subscript_ || tag == "sub"
-
+            
             // code inline
             if tag == "code" {
                 let raw = children.reduce("") {
@@ -444,27 +460,15 @@ struct HTMLNodeView: View {
                     .font(.system(.body, design: .monospaced))
                     .foregroundColor(.orange)
             }
-
+            
             return children.reduce(Text("")) { result, child in
-                result + textFrom(
-                    node: child,
-                    bold: nextBold,
-                    italic: nextItalic,
-                    underline: nextUnderline,
-                    strikethrough: nextStrike,
-                    link: nextLink,
-                    color: nextColor,
-                    mark: tag == "mark",
-                    small: nextSmall,
-                    superscript: nextSuperscript,
-                    subscript_: nextSubscript
-                )
+                Text("\(result)\(textFrom(node: child, bold: nextBold, italic: nextItalic, underline: nextUnderline, strikethrough: nextStrike, link: nextLink, color: nextColor, mark: tag == "mark", small: nextSmall, superscript: nextSuperscript, subscript_: nextSubscript))")
             }
         }
     }
-
+    
     // MARK: - Helpers
-
+    
     private func liItems(_ nodes: [HTMLNode]) -> [[HTMLNode]] {
         nodes.compactMap { node -> [HTMLNode]? in
             if case .element(let tag, _, let children) = node, tag == "li" {
@@ -473,9 +477,23 @@ struct HTMLNodeView: View {
             return nil
         }
     }
-
+    
     // MARK: - Table
-
+    
+    @ViewBuilder
+    private func tableCellView(cell: TableCell, rowIdx: Int) -> some View {
+        let isHeader = cell.isHeader
+        let bgColor: Color = isHeader
+        ? Color.accentColor.opacity(0.15)
+        : (rowIdx % 2 == 0 ? Color.systemBackground : Color.systemGray6)
+        inlineText(cell.children)
+            .font(isHeader ? .headline : .body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(bgColor)
+            .overlay(Rectangle().stroke(Color.systemGray4, lineWidth: 0.5))
+    }
+    
     @ViewBuilder
     private func tableView(_ nodes: [HTMLNode]) -> some View {
         let rows = extractTableRows(nodes)
@@ -485,31 +503,23 @@ struct HTMLNodeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, cells in
                     HStack(alignment: .top, spacing: 0) {
-                        ForEach(Array(cells.enumerated()), id: \.offset) { colIdx, cell in
-                            let isHeader = cell.isHeader
-                            inlineText(cell.children)
-                                .font(isHeader ? .headline : .body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                                .background(isHeader ? Color.accentColor.opacity(0.15) : (rowIdx % 2 == 0 ? Color(.systemBackground) : Color(.systemGray6)))
-                                .overlay(
-                                    Rectangle().stroke(Color(.systemGray4), lineWidth: 0.5)
-                                )
+                        ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                            tableCellView(cell: cell, rowIdx: rowIdx)
                         }
                     }
                 }
             }
             .cornerRadius(8)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.systemGray4, lineWidth: 1))
             .clipped()
         }
     }
-
+    
     private struct TableCell {
         let children: [HTMLNode]
         let isHeader: Bool
     }
-
+    
     private func extractTableRows(_ nodes: [HTMLNode]) -> [[TableCell]] {
         var rows: [[TableCell]] = []
         for node in nodes {
